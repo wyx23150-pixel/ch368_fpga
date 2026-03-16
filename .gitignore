@@ -1,0 +1,44 @@
+# --- Quartus 编译生成的数据库和中间文件 ---
+db/
+incremental_db/
+greybox_tmp/
+hc_output/
+hps_isw_handoff/
+sys_description/
+
+# --- 编译输出文件夹 (包含 .sof, .pof, .rbf 等固件文件) ---
+# 如果你需要追踪生成的固件，可以注释掉这一行，但通常建议手动发布或用脚本管理
+output_files/
+
+# --- 报告和日志文件 ---
+*.rpt
+*.summary
+*.done
+*.smsg
+*.jdi
+*.pin
+*.qmsg
+*.txt
+*.bag
+
+# --- 仿真文件夹 (ModelSim / QuestaSim) ---
+simulation/
+modelsim/
+*.vwf
+
+# --- 用户界面和工作区设置 (包含本地路径，不建议上传) ---
+*.qws
+*.bak
+*.columns
+
+# --- IP 核生成的中间文件 ---
+# 建议只保留 .ip 或 .qsys 文件，忽略生成的生成代码目录
+# 例如你的 IP 叫 "my_pll"，Quartus 会生成 "my_pll/" 文件夹，里面全是中间代码
+# 注意：如果你的工程结构特殊，请谨慎使用此项
+# */ip/**/*
+
+# --- 软件开发 (Nios II / Platform Designer) ---
+*.sopcinfo
+*.jic
+*.map
+*.cdb
