@@ -38,7 +38,7 @@
 
 set_global_assignment -name FAMILY "Cyclone IV E"
 set_global_assignment -name DEVICE EP4CE10F17C8
-set_global_assignment -name TOP_LEVEL_ENTITY CH368_Test
+set_global_assignment -name TOP_LEVEL_ENTITY top
 set_global_assignment -name ORIGINAL_QUARTUS_VERSION 13.1
 set_global_assignment -name PROJECT_CREATION_TIME_DATE "16:52:35  MARCH 10, 2026"
 set_global_assignment -name LAST_QUARTUS_VERSION 13.1
@@ -47,56 +47,83 @@ set_global_assignment -name MIN_CORE_JUNCTION_TEMP 0
 set_global_assignment -name MAX_CORE_JUNCTION_TEMP 85
 set_global_assignment -name ERROR_CHECK_FREQUENCY_DIVISOR 1
 set_global_assignment -name NOMINAL_CORE_SUPPLY_VOLTAGE 1.2V
-set_global_assignment -name VERILOG_FILE src/CH368_Test.v
-set_global_assignment -name VERILOG_FILE src/Rom_Test.v
-set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
-set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
-set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "2.5 V"
-set_location_assignment PIN_K10 -to ch368_addr[0]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_addr[0]
-set_location_assignment PIN_M9 -to ch368_addr[1]
-set_location_assignment PIN_N9 -to ch368_addr[2]
-set_location_assignment PIN_P11 -to ch368_addr[3]
-set_location_assignment PIN_K9 -to ch368_data[7]
-set_location_assignment PIN_P8 -to ch368_data[6]
-set_location_assignment PIN_N8 -to ch368_data[5]
-set_location_assignment PIN_R6 -to ch368_data[4]
-set_location_assignment PIN_T6 -to ch368_data[3]
-set_location_assignment PIN_M10 -to ch368_cs_n
-set_location_assignment PIN_L7 -to ch368_data[2]
-set_location_assignment PIN_L8 -to ch368_data[1]
-set_location_assignment PIN_M8 -to ch368_data[0]
-set_location_assignment PIN_P9 -to ch368_rd_n
-set_location_assignment PIN_L9 -to ch368_wr_n
+
+# ===================================================
+# 1. 时钟与复位
+# ===================================================
 set_location_assignment PIN_M16 -to clk_50m
 set_location_assignment PIN_M12 -to rst_n
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_addr[3]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_addr[2]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_addr[1]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_cs_n
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[7]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[6]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[5]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[4]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[3]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[2]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[1]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[0]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_rd_n
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_wr_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_50m
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to rst_n
-set_global_assignment -name VERILOG_FILE src/encoder.v
-set_location_assignment PIN_R8 -to enc_a
-set_location_assignment PIN_T9 -to enc_b
-set_location_assignment PIN_T10 -to enc_z
+
+# ===================================================
+# 2. CH368 数据线 (D0~D7 -> P2的3~10脚)
+# ===================================================
+set_location_assignment PIN_M8 -to ch368_data[0]
+set_location_assignment PIN_L8 -to ch368_data[1]
+set_location_assignment PIN_L7 -to ch368_data[2]
+set_location_assignment PIN_T6 -to ch368_data[3]
+set_location_assignment PIN_R6 -to ch368_data[4]
+set_location_assignment PIN_N8 -to ch368_data[5]
+set_location_assignment PIN_P8 -to ch368_data[6]
+set_location_assignment PIN_K9 -to ch368_data[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[*]
+
+# ===================================================
+# 3. CH368 地址线 (A0~A7 -> P2的13~20脚)
+# ===================================================
+set_location_assignment PIN_M9 -to ch368_addr[0]
+set_location_assignment PIN_P9 -to ch368_addr[1]
+set_location_assignment PIN_N9 -to ch368_addr[2]
+set_location_assignment PIN_M10 -to ch368_addr[3]
+set_location_assignment PIN_P11 -to ch368_addr[4]
+set_location_assignment PIN_N11 -to ch368_addr[5]
+set_location_assignment PIN_R7 -to ch368_addr[6]
+set_location_assignment PIN_L10 -to ch368_addr[7]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_addr[*]
+
+# ===================================================
+# 4. CH368 控制线与闲置片选
+# ===================================================
+set_location_assignment PIN_T9 -to ch368_wr_n
+set_location_assignment PIN_T10 -to ch368_rd_n
+set_location_assignment PIN_P14 -to ch368_cs_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_wr_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_rd_n
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_cs_n
+
+# ===================================================
+# 5. 编码器与外设 (传感器、相机、气缸)
+# ===================================================
+set_location_assignment PIN_T8 -to enc_a
+set_location_assignment PIN_R9 -to enc_b
+set_location_assignment PIN_T12 -to enc_z
+set_location_assignment PIN_T11 -to sensor_in
+set_location_assignment PIN_R10 -to camera_out
+set_location_assignment PIN_R14 -to reject_out
+
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_a
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_b
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_z
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sensor_in
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to camera_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to reject_out
+
+# ===================================================
+# 6. 编译及文件设置
+# ===================================================
+set_global_assignment -name POWER_PRESET_COOLING_SOLUTION "23 MM HEAT SINK WITH 200 LFPM AIRFLOW"
+set_global_assignment -name POWER_BOARD_THERMAL_MODEL "NONE (CONSERVATIVE)"
+set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
+set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
+set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
+
+# ===================================================
+# 7. SignalTap 设置 (保留了开启状态，但去掉了旧节点的绑定防报错)
+# ===================================================
 set_global_assignment -name ENABLE_SIGNALTAP ON
 set_global_assignment -name USE_SIGNALTAP_FILE output_files/stp1.stp
-set_global_assignment -name SIGNALTAP_FILE output_files/stp1.stp
 set_global_assignment -name SLD_NODE_CREATOR_ID 110 -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_ENTITY_NAME sld_signaltap -section_id auto_signaltap_0
 set_instance_assignment -name POST_FIT_CONNECT_TO_SLD_NODE_ENTITY_PORT acq_clk -to clk_50m -section_id auto_signaltap_0
@@ -192,5 +219,10 @@ set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_IN_ENABLE
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_ADVANCED_TRIGGER_ENTITY=basic,1," -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_LEVEL_PIPELINE=1" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_ENABLE_ADVANCED_TRIGGER=0" -section_id auto_signaltap_0
-set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
+set_global_assignment -name VERILOG_FILE src/ch368_interface.v
+set_global_assignment -name VERILOG_FILE src/workpiece_tracker.v
+set_global_assignment -name VERILOG_FILE src/Rom_Test.v
+set_global_assignment -name VERILOG_FILE src/encoder.v
+set_global_assignment -name VERILOG_FILE src/top.v
 set_global_assignment -name SLD_FILE db/stp1_auto_stripped.stp
+set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

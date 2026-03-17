@@ -18,13 +18,8 @@ output_files/
 *.jdi
 *.pin
 *.qmsg
-*.txt
 *.bag
 
-# --- 仿真文件夹 (ModelSim / QuestaSim) ---
-simulation/
-modelsim/
-*.vwf
 
 # --- 用户界面和工作区设置 (包含本地路径，不建议上传) ---
 *.qws
@@ -35,7 +30,6 @@ modelsim/
 # 建议只保留 .ip 或 .qsys 文件，忽略生成的生成代码目录
 # 例如你的 IP 叫 "my_pll"，Quartus 会生成 "my_pll/" 文件夹，里面全是中间代码
 # 注意：如果你的工程结构特殊，请谨慎使用此项
-# */ip/**/*
 
 # --- 软件开发 (Nios II / Platform Designer) ---
 *.sopcinfo
