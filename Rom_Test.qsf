@@ -35,7 +35,6 @@
 #
 # -------------------------------------------------------------------------- #
 
-
 set_global_assignment -name FAMILY "Cyclone IV E"
 set_global_assignment -name DEVICE EP4CE10F17C8
 set_global_assignment -name TOP_LEVEL_ENTITY top
@@ -58,7 +57,7 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_50m
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to rst_n
 
 # ===================================================
-# 2. CH368 数据线 (D0~D7 -> P2的3~10脚)
+# 2. CH368 数据线 (按照你的新表格 P2排针)
 # ===================================================
 set_location_assignment PIN_M8 -to ch368_data[0]
 set_location_assignment PIN_L8 -to ch368_data[1]
@@ -71,7 +70,7 @@ set_location_assignment PIN_K9 -to ch368_data[7]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[*]
 
 # ===================================================
-# 3. CH368 地址线 (A0~A7 -> P2的13~20脚)
+# 3. CH368 地址线 (按照你的新表格 P2排针)
 # ===================================================
 set_location_assignment PIN_M9 -to ch368_addr[0]
 set_location_assignment PIN_P9 -to ch368_addr[1]
@@ -94,21 +93,35 @@ set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_rd_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_cs_n
 
 # ===================================================
-# 5. 编码器与外设 (传感器、相机、气缸)
+# 5. 编码器与外设 (按照你的新表格 P3排针)
 # ===================================================
-set_location_assignment PIN_T8 -to enc_a
-set_location_assignment PIN_R9 -to enc_b
-set_location_assignment PIN_T12 -to enc_z
-set_location_assignment PIN_T11 -to sensor_in
-set_location_assignment PIN_R10 -to camera_out
-set_location_assignment PIN_R14 -to reject_out
+set_location_assignment PIN_A15 -to light_out
+set_location_assignment PIN_A14 -to camera_out
+set_location_assignment PIN_D9  -to reject_out
+set_location_assignment PIN_C6  -to motor_pwm_out
+set_location_assignment PIN_E11 -to enc_a
+set_location_assignment PIN_F6  -to enc_b
+set_location_assignment PIN_D12 -to motor_en_out
+set_location_assignment PIN_A7  -to sensor_in
 
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_a
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_b
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_z
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sensor_in
+# 【补齐表格中漏掉的两个引脚，暂配到 P3 的相邻引脚】
+set_location_assignment PIN_E10 -to qual_out
+set_location_assignment PIN_C11 -to motor_dir_out
+# 【依然屏蔽机械清零用的 Z 相】
+set_location_assignment PIN_T12 -to enc_z
+
+# 统一设置为 3.3-V LVTTL
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to light_out
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to camera_out
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to reject_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to motor_pwm_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_a
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_b
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to motor_en_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sensor_in
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to qual_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to motor_dir_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_z
 
 # ===================================================
 # 6. 编译及文件设置
@@ -119,8 +132,15 @@ set_global_assignment -name PARTITION_NETLIST_TYPE SOURCE -section_id Top
 set_global_assignment -name PARTITION_FITTER_PRESERVATION_LEVEL PLACEMENT_AND_ROUTING -section_id Top
 set_global_assignment -name PARTITION_COLOR 16764057 -section_id Top
 
+set_global_assignment -name VERILOG_FILE src/ch368_interface.v
+set_global_assignment -name VERILOG_FILE src/workpiece_tracker.v
+set_global_assignment -name VERILOG_FILE src/encoder.v
+set_global_assignment -name VERILOG_FILE src/motor.v
+set_global_assignment -name VERILOG_FILE src/top.v
+
+
 # ===================================================
-# 7. SignalTap 设置 (保留了开启状态，但去掉了旧节点的绑定防报错)
+# 7. SignalTap 基本设置 (清理了报废的探针节点)
 # ===================================================
 set_global_assignment -name ENABLE_SIGNALTAP ON
 set_global_assignment -name USE_SIGNALTAP_FILE output_files/stp1.stp
@@ -219,10 +239,5 @@ set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_IN_ENABLE
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_ADVANCED_TRIGGER_ENTITY=basic,1," -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_TRIGGER_LEVEL_PIPELINE=1" -section_id auto_signaltap_0
 set_global_assignment -name SLD_NODE_PARAMETER_ASSIGNMENT "SLD_ENABLE_ADVANCED_TRIGGER=0" -section_id auto_signaltap_0
-set_global_assignment -name VERILOG_FILE src/ch368_interface.v
-set_global_assignment -name VERILOG_FILE src/workpiece_tracker.v
-set_global_assignment -name VERILOG_FILE src/Rom_Test.v
-set_global_assignment -name VERILOG_FILE src/encoder.v
-set_global_assignment -name VERILOG_FILE src/top.v
 set_global_assignment -name SLD_FILE db/stp1_auto_stripped.stp
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top
