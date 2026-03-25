@@ -102,36 +102,36 @@ set_location_assignment PIN_A15 -to light_out[0]
 set_location_assignment PIN_F11 -to light_out[1]
 set_location_assignment PIN_A12 -to light_out[2]
 set_location_assignment PIN_A10 -to light_out[3]
-set_location_assignment PIN_D8  -to light_out[4]
-set_location_assignment PIN_B6  -to light_out[5]
+set_location_assignment PIN_D8 -to light_out[4]
+set_location_assignment PIN_B6 -to light_out[5]
 # 【补充】7# 和 8# 光源 (表格中未提供，暂分配闲置引脚占位，请根据实际接线修改！)
-set_location_assignment PIN_C8  -to light_out[6]
-set_location_assignment PIN_E8  -to light_out[7]
+set_location_assignment PIN_C8 -to light_out[6]
+set_location_assignment PIN_E8 -to light_out[7]
 
 # --- 相机数组 (8个通道) ---
 # 根据表格 1# ~ 6#
 set_location_assignment PIN_A14 -to camera_out[0]
 set_location_assignment PIN_A13 -to camera_out[1]
 set_location_assignment PIN_A11 -to camera_out[2]
-set_location_assignment PIN_A9  -to camera_out[3]
-set_location_assignment PIN_B7  -to camera_out[4]
+set_location_assignment PIN_A9 -to camera_out[3]
+set_location_assignment PIN_B7 -to camera_out[4]
 set_location_assignment PIN_D11 -to camera_out[5]
 # 【补充】7# 和 8# 相机 (表格中未提供，暂分配闲置引脚占位，请根据实际接线修改！)
 set_location_assignment PIN_D14 -to camera_out[6]
-set_location_assignment PIN_F9  -to camera_out[7]
+set_location_assignment PIN_F9 -to camera_out[7]
 
 # --- 气阀与传感器 ---
 # 注意：你的 top.v 里叫 rej_out，这里必须同步修改！
-set_location_assignment PIN_D9  -to rej_out
+set_location_assignment PIN_D9 -to rej_out
 set_location_assignment PIN_E10 -to qual_out
-set_location_assignment PIN_A7  -to sensor_in
+set_location_assignment PIN_A7 -to sensor_in
 
 # --- 电机与编码器 ---
-set_location_assignment PIN_C6  -to motor_pwm_out
+set_location_assignment PIN_C6 -to motor_pwm_out
 set_location_assignment PIN_D12 -to motor_en_out
 set_location_assignment PIN_C11 -to motor_dir_out
 set_location_assignment PIN_E11 -to enc_a
-set_location_assignment PIN_F6  -to enc_b
+set_location_assignment PIN_F6 -to enc_b
 set_location_assignment PIN_T12 -to enc_z
 
 # ===================================================
@@ -176,4 +176,5 @@ set_global_assignment -name QIP_FILE ip/workpieces_ram.qip
 set_global_assignment -name VERILOG_FILE src/cam_light_channel.v
 set_global_assignment -name VERILOG_FILE src/valve_ctrl.v
 
+set_global_assignment -name CDF_FILE output_files/Chain1.cdf
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

@@ -1,50 +1,34 @@
 module workpiece_tracker(
-    input  wire        clk,          // ÏµÍ³Ê±ÖÓ (24MHz)
-    input  wire        rst_n,        // ¸´Î»ĞÅºÅ
-    
-    // 1. ÎïÀíÊÀ½çĞÅºÅ
+    input  wire        clk,
+    input  wire        rst_n,
     input  wire [31:0] current_enc,  
     input  wire        sensor_in,    
-    
-    // 2. Êä³ö¸øÍâÉèÍ¨µÀµÄ¡°¿ª»ğÂö³å¡±ºÍÅäÖÃ
-    output wire [7:0]  cam_hit_pulse, // ¡¾Éı¼¶¡¿£º8¸öÏà»úµÄ¶ÀÁ¢´¥·¢Âö³å
-    output wire        qual_hit_pulse, 
-    output wire        rej_hit_pulse,  
-    
+    output reg  [7:0]  cam_hit_pulse, 
+    output reg         qual_hit_pulse, 
+    output reg         rej_hit_pulse,  
     output wire [7:0]  light_delay_out,
     output wire [7:0]  blow_time_out,  
-
-    // 3. CH368 ×ÜÏßÍ¨ĞÅ½Ó¿Ú
     input  wire [7:0]  addr,         
     input  wire        wr_en,        
     input  wire [7:0]  data_in,      
     input  wire        rd_en,        
     output reg  [7:0]  data_out,
-
-    // 4. µç»úÇı¶¯
     output reg         motor_en,     
     output reg         motor_dir,    
     output reg  [7:0]  motor_speed   
 );
 
-    // =========================================================
-    // Ä£¿é A£ºÊäÈëÂË²¨ (20ms Ó²¼şÏû¶¶)
-    // =========================================================
-    reg sensor_d1, sensor_d2;
-    reg sensor_stable;               
+    reg sensor_d1, sensor_d2, sensor_stable;               
     reg [18:0] debounce_cnt;         
-
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            sensor_d1 <= 0; sensor_d2 <= 0;
-            sensor_stable <= 0; debounce_cnt <= 0;
+            sensor_d1 <= 0; sensor_d2 <= 0; sensor_stable <= 0; debounce_cnt <= 0;
         end else begin
             sensor_d1 <= sensor_in; sensor_d2 <= sensor_d1;
             if (sensor_d2 != sensor_stable) begin
                 debounce_cnt <= debounce_cnt + 1'b1;
                 if (debounce_cnt >= 19'd480_00) begin 
-                    sensor_stable <= sensor_d2;
-                    debounce_cnt  <= 0;
+                    sensor_stable <= sensor_d2; debounce_cnt <= 0;
                 end
             end else debounce_cnt <= 0; 
         end
@@ -53,75 +37,46 @@ module workpiece_tracker(
     always @(posedge clk) sensor_stable_d1 <= sensor_stable;
     wire new_workpiece_pulse = (sensor_stable == 1'b1 && sensor_stable_d1 == 1'b0);
 
-    // ±àÂëÆ÷Ïà¶ÔÎ»ÒÆ¼ÆËã (ĞŞ¸´ºóµÄ32Î»¼õ·¨)
-    reg [31:0] prev_enc;
-    always @(posedge clk) prev_enc <= current_enc;
-    wire [15:0] diff_16 = current_enc[15:0] - prev_enc[15:0];
-    wire [31:0] enc_diff = {{16{diff_16[15]}}, diff_16}; 
-
-    // =========================================================
-    // Ä£¿é B£ºÈ«¾Ö¶¯Ì¬¼Ä´æÆ÷
-    // =========================================================
-    // ¡¾Éı¼¶¡¿£ºÏà»úÄ¿±êÎ»ÖÃ±ä³ÉÁË 8 ¸ö 32Î»µÄÊı×é£¡
     reg [31:0] target_cam [0:7];     
-    
     reg [31:0] target_reject  = 32'd20000;    
     reg [7:0]  light_delay_ms = 8'd2;        
     reg [7:0]  blow_time_ms   = 8'd50;       
-    
     assign light_delay_out = light_delay_ms;
     assign blow_time_out   = blow_time_ms;
 
-    // =========================================================
-    // Ä£¿é C£ººËĞÄÓ²¼ş¶ÓÁĞ 
-    // =========================================================
-    reg        slot_valid [0:7];     
-    reg [7:0]  slot_state [0:7];     
-    reg [31:0] slot_pos   [0:7];     
-    reg [23:0] shadow_pos [0:7];    
+    reg [31:0] global_enc;
+    always @(posedge clk) global_enc <= current_enc;
+
+    wire [10:0] ram_addr_a;
+    wire [7:0]  ram_data_a_out;
+    reg         ram_wren_a;
+    assign ram_addr_a = {4'd0, addr[6:0]}; 
+
+    reg  [7:0]  ram_addr_b;
+    reg  [63:0] ram_data_b_in;
+    wire [63:0] ram_data_b_out;
+    reg         ram_wren_b;
+
+    workpieces_ram u_ram (
+        .clock      (clk),
+        .data_a     (data_in), .address_a  (ram_addr_a), .wren_a (ram_wren_a), .q_a (ram_data_a_out),
+        .data_b     (ram_data_b_in), .address_b  (ram_addr_b), .wren_b (ram_wren_b), .q_b (ram_data_b_out)
+    );
+
+    // ã€ä¿®æ”¹ç‚¹1ã€‘ï¼šæš´éœ² wp_head (æœ€æ–°æ§½ä½) å’Œ global_enc
+    reg [3:0]  wp_head; 
 
     integer i;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            motor_en <= 0; motor_dir <= 1; motor_speed <= 8'd0;
-            target_reject  <= 32'd20000; 
-            light_delay_ms <= 8'd2;      
-            blow_time_ms   <= 8'd50;     
-            for (i=0; i<8; i=i+1) begin
-                // ³õÊ¼»¯Ê±£¬¸ø 8 ¸öÏà»úÉÔÎ¢²»Í¬µÄ´í¿ªÎ»ÖÃ£¨¿É±»ÉÏÎ»»ú¸²¸Ç£©
-                target_cam[i] <= 32'd5000 + (i * 1000); 
-                slot_valid[i] <= 0; slot_state[i] <= 0; slot_pos[i] <= 0;
-            end
-        end 
-        else begin
-            // 1. Î»ÖÃÀÛ¼Ó
-            for (i=0; i<8; i=i+1) begin
-                if (slot_valid[i]) slot_pos[i] <= slot_pos[i] + enc_diff;
-            end
-
-            // 2. ÈëÁÏ·ÖÅä
-            if (new_workpiece_pulse) begin
-                if      (!slot_valid[0]) begin slot_valid[0] <= 1; slot_pos[0] <= 0; slot_state[0] <= 8'h01; end
-                else if (!slot_valid[1]) begin slot_valid[1] <= 1; slot_pos[1] <= 0; slot_state[1] <= 8'h01; end
-                else if (!slot_valid[2]) begin slot_valid[2] <= 1; slot_pos[2] <= 0; slot_state[2] <= 8'h01; end
-                else if (!slot_valid[3]) begin slot_valid[3] <= 1; slot_pos[3] <= 0; slot_state[3] <= 8'h01; end
-                else if (!slot_valid[4]) begin slot_valid[4] <= 1; slot_pos[4] <= 0; slot_state[4] <= 8'h01; end
-                else if (!slot_valid[5]) begin slot_valid[5] <= 1; slot_pos[5] <= 0; slot_state[5] <= 8'h01; end
-                else if (!slot_valid[6]) begin slot_valid[6] <= 1; slot_pos[6] <= 0; slot_state[6] <= 8'h01; end
-                else if (!slot_valid[7]) begin slot_valid[7] <= 1; slot_pos[7] <= 0; slot_state[7] <= 8'h01; end
-            end
-            
-            // 3. µµ°¸Ïú»Ù
-            for (i=0; i<8; i=i+1) begin
-                if (slot_valid[i] && slot_pos[i] > (target_reject + 32'd1000)) begin
-                    slot_valid[i] <= 0; slot_pos[i] <= 0; slot_state[i] <= 0;
-                end
-            end
-
-            // 4. ¡¾¸ß¼¶ÇĞÆ¬Ğ´²Ù×÷¡¿
+            motor_en <= 0; motor_dir <= 1; motor_speed <= 0;
+            target_reject <= 32'd20000; light_delay_ms <= 8'd2; blow_time_ms <= 8'd50;
+            for(i=0; i<8; i=i+1) target_cam[i] <= 32'd5000 + (i*1000);
+            ram_wren_a <= 1'b0;
+        end else begin
+            ram_wren_a <= 1'b0; 
             if (wr_en) begin
                 if (addr >= 8'h20 && addr <= 8'h3F) begin
-                    // Ğ´Èë 8 ¸öÏà»úÎ»ÖÃ (ÀûÓÃÎ»ÔËËãÌáÈ¡Ïà»úË÷Òı addr[4:2])
                     case (addr[1:0])
                         2'd0: target_cam[addr[4:2]][7:0]   <= data_in;
                         2'd1: target_cam[addr[4:2]][15:8]  <= data_in;
@@ -129,21 +84,15 @@ module workpiece_tracker(
                         2'd3: target_cam[addr[4:2]][31:24] <= data_in;
                     endcase
                 end
-                else if (addr >= 8'h80 && addr <= 8'hBF) begin
-                    // Ğ´Èë 8 ¸ö¹¤¼ş×´Ì¬ (Ö»ÓĞÎ²ºÅÎª0µÄµØÖ·²ÅĞ´×´Ì¬)
-                    if (addr[2:0] == 3'd0) slot_state[addr[5:3]] <= data_in;
-                end
+                else if (addr >= 8'h80 && addr <= 8'hFF) ram_wren_a <= 1'b1;       
                 else begin
-                    // È«¾Ö²ÎÊıĞ´Èë
                     case (addr)
                         8'h02: begin motor_en <= data_in[0]; motor_dir <= data_in[1]; end
                         8'h03: motor_speed <= data_in;
-                        
                         8'h08: target_reject[7:0]   <= data_in;
                         8'h09: target_reject[15:8]  <= data_in;
                         8'h0A: target_reject[23:16] <= data_in;
                         8'h0B: target_reject[31:24] <= data_in;
-                        
                         8'h0E: light_delay_ms <= data_in; 
                         8'h0F: blow_time_ms   <= data_in; 
                     endcase
@@ -152,25 +101,8 @@ module workpiece_tracker(
         end
     end
 
-    // =========================================================
-    // Ä£¿é D£º¶Á²Ù×÷Óë 32Î»Ó°×ÓËø´æÆ÷ (¸ß¼¶ÇĞÆ¬»¯)
-    // =========================================================
-    reg rd_en_d1, rd_en_d2;
-    always @(posedge clk) begin rd_en_d1 <= rd_en; rd_en_d2 <= rd_en_d1; end
-    wire rd_rising_edge = (rd_en_d1 == 1'b1 && rd_en_d2 == 1'b0);
-
-    always @(posedge clk) begin
-        if (rd_rising_edge) begin
-            // Ö»Òª¶ÁÈ¡ 0x81, 0x89... µÈ×îµÍÎ»Î»ÖÃ£¬Ë²¼ä´¥·¢¸ßÎ»Ëø´æ
-            if (addr >= 8'h80 && addr <= 8'hBF && addr[2:0] == 3'd1) begin
-                shadow_pos[addr[5:3]] <= slot_pos[addr[5:3]][31:8];
-            end
-        end
-    end
-
     always @(*) begin
         if (addr >= 8'h20 && addr <= 8'h3F) begin
-            // ¶¯Ì¬¶Á³ö 8 ¸öÏà»úÎ»ÖÃ
             case (addr[1:0])
                 2'd0: data_out = target_cam[addr[4:2]][7:0];
                 2'd1: data_out = target_cam[addr[4:2]][15:8];
@@ -178,28 +110,21 @@ module workpiece_tracker(
                 2'd3: data_out = target_cam[addr[4:2]][31:24];
             endcase
         end
-        else if (addr >= 8'h80 && addr <= 8'hBF) begin
-            // ¶¯Ì¬¶Á³ö 8 ¸ö¹¤¼ş²ÎÊı
-            case (addr[2:0])
-                3'd0: data_out = slot_valid[addr[5:3]] ? slot_state[addr[5:3]] : 8'h00; 
-                3'd1: data_out = slot_pos[addr[5:3]][7:0];     
-                3'd2: data_out = shadow_pos[addr[5:3]][7:0];   
-                3'd3: data_out = shadow_pos[addr[5:3]][15:8];  
-                3'd4: data_out = shadow_pos[addr[5:3]][23:16]; 
-                default: data_out = 8'h00;
-            endcase
-        end
+        else if (addr >= 8'h80 && addr <= 8'hFF) data_out = ram_data_a_out; 
         else begin
             case (addr)
                 8'h00: data_out = 8'h5A; 
+                8'h01: data_out = {4'b0, wp_head};       // å¼€æ”¾ï¼šè®© C# çŸ¥é“å“ªä¸ªæ§½ä½æ˜¯æœ€æ–°çš„ï¼
                 8'h02: data_out = {6'b0, motor_dir, motor_en};
                 8'h03: data_out = motor_speed;
-                
+                8'h04: data_out = global_enc[7:0];       // å¼€æ”¾ï¼šå…¨å±€ç¼–ç å™¨ 0
+                8'h05: data_out = global_enc[15:8];      // å¼€æ”¾ï¼šå…¨å±€ç¼–ç å™¨ 1
+                8'h06: data_out = global_enc[23:16];     // å¼€æ”¾ï¼šå…¨å±€ç¼–ç å™¨ 2
+                8'h07: data_out = global_enc[31:24];     // å¼€æ”¾ï¼šå…¨å±€ç¼–ç å™¨ 3
                 8'h08: data_out = target_reject[7:0];
                 8'h09: data_out = target_reject[15:8];
                 8'h0A: data_out = target_reject[23:16];
                 8'h0B: data_out = target_reject[31:24];
-                
                 8'h0E: data_out = light_delay_ms;
                 8'h0F: data_out = blow_time_ms;
                 default: data_out = 8'hFF; 
@@ -207,47 +132,87 @@ module workpiece_tracker(
         end
     end
 
-    // =========================================================
-    // Ä£¿é E£ºÓ²¼şÉú³ÉÊ÷ (¼«ÆäÓÅÃÀµÄ 8Ïà»ú¶ÀÁ¢Åö×²¼ì²â)
-    // =========================================================
-    wire [7:0] cam_hit_cond;
-    wire [7:0] qual_matches;
-    wire [7:0] rej_matches;
+    localparam S_IDLE       = 3'd0;
+    localparam S_WRITE_NEW  = 3'd1;
+    localparam S_SWEEP_RD   = 3'd2;
+    localparam S_SWEEP_WAIT = 3'd3;
+    localparam S_SWEEP_CALC = 3'd4;
+    localparam S_SWEEP_WR   = 3'd5;
 
-    genvar c, w;
-    generate
-        // 1. Éú³É 8 ¸öÏà»úµÄ¶ÀÁ¢´¥·¢¼ì²â
-        for (c = 0; c < 8; c = c + 1) begin : CAM_HIT_GEN
-            wire [7:0] wp_cam_matches;
-            for (w = 0; w < 8; w = w + 1) begin : WP_CAM_MATCH
-                // ÈÎºÎÒ»¸öÓĞĞ§µÄ¹¤¼ş£¬µ½´ïÁË cºÅÏà»ú µÄÄ¿±êÎ»ÖÃ£¬¾Í´¥·¢Æ¥Åä
-                assign wp_cam_matches[w] = (slot_valid[w] && (slot_pos[w] == target_cam[c]));
-            end
-            assign cam_hit_cond[c] = |wp_cam_matches; // °Ñ 8¸ö¹¤¼şµÄÆ¥Åä½á¹û°´Î»»ò
+    reg [2:0]  state;
+    reg [31:0] last_checked_enc;  
+    reg [3:0]  sweep_idx;         
+
+    // ã€ä¿®æ”¹ç‚¹2ã€‘ï¼šå®Œç¾å­—èŠ‚å¯¹é½ C#
+    wire [7:0]  wp_status  = ram_data_b_out[7:0];    // çŠ¶æ€å¯¹é½åˆ°æœ€ä½å­—èŠ‚ (0x80)
+    wire [31:0] wp_abs_pos = ram_data_b_out[39:8];   // ç»å¯¹åæ ‡å¯¹é½åˆ° 0x81~0x84
+    wire [31:0] rel_pos    = global_enc - wp_abs_pos; 
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            state <= S_IDLE; last_checked_enc <= 0; wp_head <= 0; sweep_idx <= 0;
+            ram_wren_b <= 0; cam_hit_pulse <= 0; qual_hit_pulse <= 0; rej_hit_pulse <= 0;
+        end else begin
+            ram_wren_b <= 0; cam_hit_pulse <= 0; qual_hit_pulse <= 0; rej_hit_pulse <= 0; 
+
+            case (state)
+                S_IDLE: begin
+                    if (new_workpiece_pulse) begin
+                        ram_addr_b    <= {4'd0, wp_head}; 
+                        // ã€ä¿®æ”¹ç‚¹3ã€‘ï¼šæ•°æ®æ‰“åŒ…é¡ºåºè°ƒæ•´ï¼å…ˆå‹å…¥ global_encï¼Œæœ€åå‹å…¥çŠ¶æ€å­— 0x01
+                        ram_data_b_in <= {24'd0, global_enc, 8'h01}; 
+                        ram_wren_b    <= 1'b1;
+                        state         <= S_WRITE_NEW;
+                    end 
+                    else if (global_enc != last_checked_enc) begin
+                        last_checked_enc <= global_enc; sweep_idx <= 0; state <= S_SWEEP_RD;
+                    end
+                end
+
+                S_WRITE_NEW: begin
+                    wp_head <= wp_head + 1'b1; 
+                    state   <= S_IDLE;
+                end
+
+                S_SWEEP_RD: begin
+                    ram_addr_b <= {4'd0, sweep_idx}; state <= S_SWEEP_WAIT;
+                end
+                S_SWEEP_WAIT: begin state <= S_SWEEP_CALC; end
+
+                S_SWEEP_CALC: begin
+                    if (wp_status != 0) begin
+                        if (rel_pos == target_cam[0]) cam_hit_pulse[0] <= 1;
+                        if (rel_pos == target_cam[1]) cam_hit_pulse[1] <= 1;
+                        if (rel_pos == target_cam[2]) cam_hit_pulse[2] <= 1;
+                        if (rel_pos == target_cam[3]) cam_hit_pulse[3] <= 1;
+                        if (rel_pos == target_cam[4]) cam_hit_pulse[4] <= 1;
+                        if (rel_pos == target_cam[5]) cam_hit_pulse[5] <= 1;
+                        if (rel_pos == target_cam[6]) cam_hit_pulse[6] <= 1;
+                        if (rel_pos == target_cam[7]) cam_hit_pulse[7] <= 1;
+
+                        if (rel_pos == target_reject) begin
+                            if (wp_status == 8'hAA) qual_hit_pulse <= 1;
+                            if (wp_status == 8'hEE) rej_hit_pulse <= 1;
+                        end
+
+                        if (rel_pos > target_reject + 32'd1000) begin
+                            ram_addr_b    <= {4'd0, sweep_idx};
+                            // é”€æ¯æ—¶ä¹Ÿè¦ä¿æŒæ ¼å¼ï¼šçŠ¶æ€ä½æ¸…é›¶
+                            ram_data_b_in <= {24'd0, 32'd0, 8'h00}; 
+                            ram_wren_b    <= 1'b1;
+                            state         <= S_SWEEP_WR;
+                        end else begin
+                            if (sweep_idx == 4'd15) state <= S_IDLE; else begin sweep_idx <= sweep_idx + 1'b1; state <= S_SWEEP_RD; end
+                        end
+                    end else begin
+                        if (sweep_idx == 4'd15) state <= S_IDLE; else begin sweep_idx <= sweep_idx + 1'b1; state <= S_SWEEP_RD; end
+                    end
+                end
+
+                S_SWEEP_WR: begin
+                    if (sweep_idx == 4'd15) state <= S_IDLE; else begin sweep_idx <= sweep_idx + 1'b1; state <= S_SWEEP_RD; end
+                end
+            endcase
         end
-        
-        // 2. Éú³ÉÆø·§µÄ´¥·¢¼ì²â
-        for (w = 0; w < 8; w = w + 1) begin : VALVE_MATCH_GEN
-            assign qual_matches[w] = (slot_valid[w] && (slot_pos[w] == target_reject) && (slot_state[w] == 8'hAA));
-            assign rej_matches[w]  = (slot_valid[w] && (slot_pos[w] == target_reject) && (slot_state[w] == 8'hEE));
-        end
-    endgenerate
-
-    wire qual_hit_cond = |qual_matches;
-    wire rej_hit_cond  = |rej_matches;
-
-    // Ó²¼ş±ßÑØ¼ì²â£ºÉú³ÉÑÏ¸ñµÄ 1 ÅÄÂö³å
-    reg [7:0] cam_hit_d1;
-    reg       qual_hit_d1, rej_hit_d1;
-    always @(posedge clk) begin
-        cam_hit_d1  <= cam_hit_cond;
-        qual_hit_d1 <= qual_hit_cond;
-        rej_hit_d1  <= rej_hit_cond;
     end
-    
-    // ×îÖÕÊä³ö£º8¸ùÏà»úÏß£¬2¸ùÆø·§Ïß
-    assign cam_hit_pulse = cam_hit_cond  & ~cam_hit_d1;
-    assign qual_hit_pulse = qual_hit_cond & ~qual_hit_d1;
-    assign rej_hit_pulse  = rej_hit_cond  & ~rej_hit_d1;
-
 endmodule
