@@ -27,9 +27,7 @@ module workpiece_tracker(
             sensor_d1 <= sensor_in; sensor_d2 <= sensor_d1;
             if (sensor_d2 != sensor_stable) begin
                 debounce_cnt <= debounce_cnt + 1'b1;
-                if (debounce_cnt >= 19'd480_00) begin 
-                    sensor_stable <= sensor_d2; debounce_cnt <= 0;
-                end
+                if (debounce_cnt >= 19'd480_00) begin sensor_stable <= sensor_d2; debounce_cnt <= 0; end
             end else debounce_cnt <= 0; 
         end
     end
@@ -47,12 +45,19 @@ module workpiece_tracker(
     reg [31:0] global_enc;
     always @(posedge clk) global_enc <= current_enc;
 
-    wire [10:0] ram_addr_a;
+    // =========================================================
+    // 【航母级架构】：16位双翻页器 + 13位巨型观察窗
+    // =========================================================
+    reg [15:0] wp_index; // 16位翻页寄存器
+
+    wire [12:0] ram_addr_a; // A端口现在是 8192 深度，需要 13 根地址线！
     wire [7:0]  ram_data_a_out;
     reg         ram_wren_a;
-    assign ram_addr_a = {4'd0, addr[6:0]}; 
+    
+    // 拼接魔法：10位工件ID + 3位字节偏移 = 13位物理地址
+    assign ram_addr_a = {wp_index[9:0], addr[2:0]}; 
 
-    reg  [7:0]  ram_addr_b;
+    reg  [9:0]  ram_addr_b; // B端口现在是 1024 深度，需要 10 根地址线！
     reg  [63:0] ram_data_b_in;
     wire [63:0] ram_data_b_out;
     reg         ram_wren_b;
@@ -63,8 +68,8 @@ module workpiece_tracker(
         .data_b     (ram_data_b_in), .address_b  (ram_addr_b), .wren_b (ram_wren_b), .q_b (ram_data_b_out)
     );
 
-    // 【修改点1】：暴露 wp_head (最新槽位) 和 global_enc
-    reg [3:0]  wp_head; 
+    // 头指针暴涨到 10位宽！支持 0~1023 个工件！
+    reg [9:0]  wp_head; 
 
     integer i;
     always @(posedge clk or negedge rst_n) begin
@@ -72,7 +77,7 @@ module workpiece_tracker(
             motor_en <= 0; motor_dir <= 1; motor_speed <= 0;
             target_reject <= 32'd20000; light_delay_ms <= 8'd2; blow_time_ms <= 8'd50;
             for(i=0; i<8; i=i+1) target_cam[i] <= 32'd5000 + (i*1000);
-            ram_wren_a <= 1'b0;
+            ram_wren_a <= 1'b0; wp_index <= 0;
         end else begin
             ram_wren_a <= 1'b0; 
             if (wr_en) begin
@@ -84,7 +89,10 @@ module workpiece_tracker(
                         2'd3: target_cam[addr[4:2]][31:24] <= data_in;
                     endcase
                 end
-                else if (addr >= 8'h80 && addr <= 8'hFF) ram_wren_a <= 1'b1;       
+                // 【新增】：双翻页器写入机制
+                else if (addr == 8'h7E) wp_index[15:8] <= data_in; // 翻页高8位
+                else if (addr == 8'h7F) wp_index[7:0]  <= data_in; // 翻页低8位
+                else if (addr >= 8'h80 && addr <= 8'h87) ram_wren_a <= 1'b1;       
                 else begin
                     case (addr)
                         8'h02: begin motor_en <= data_in[0]; motor_dir <= data_in[1]; end
@@ -110,17 +118,20 @@ module workpiece_tracker(
                 2'd3: data_out = target_cam[addr[4:2]][31:24];
             endcase
         end
-        else if (addr >= 8'h80 && addr <= 8'hFF) data_out = ram_data_a_out; 
+        else if (addr == 8'h7E) data_out = wp_index[15:8];
+        else if (addr == 8'h7F) data_out = wp_index[7:0];
+        else if (addr >= 8'h80 && addr <= 8'h87) data_out = ram_data_a_out; 
         else begin
             case (addr)
                 8'h00: data_out = 8'h5A; 
-                8'h01: data_out = {4'b0, wp_head};       // 开放：让 C# 知道哪个槽位是最新的！
+                8'h01: data_out = wp_head[7:0];                 // 【修改】：头指针低 8 位
+                8'h0C: data_out = {6'b0, wp_head[9:8]};         // 【新增】：占用 0x0C 放头指针高 2 位
                 8'h02: data_out = {6'b0, motor_dir, motor_en};
                 8'h03: data_out = motor_speed;
-                8'h04: data_out = global_enc[7:0];       // 开放：全局编码器 0
-                8'h05: data_out = global_enc[15:8];      // 开放：全局编码器 1
-                8'h06: data_out = global_enc[23:16];     // 开放：全局编码器 2
-                8'h07: data_out = global_enc[31:24];     // 开放：全局编码器 3
+                8'h04: data_out = global_enc[7:0];       
+                8'h05: data_out = global_enc[15:8];      
+                8'h06: data_out = global_enc[23:16];     
+                8'h07: data_out = global_enc[31:24];     
                 8'h08: data_out = target_reject[7:0];
                 8'h09: data_out = target_reject[15:8];
                 8'h0A: data_out = target_reject[23:16];
@@ -141,11 +152,10 @@ module workpiece_tracker(
 
     reg [2:0]  state;
     reg [31:0] last_checked_enc;  
-    reg [3:0]  sweep_idx;         
+    reg [9:0]  sweep_idx;         // 10位扫描指针，支持扫描 0~1023
 
-    // 【修改点2】：完美字节对齐 C#
-    wire [7:0]  wp_status  = ram_data_b_out[7:0];    // 状态对齐到最低字节 (0x80)
-    wire [31:0] wp_abs_pos = ram_data_b_out[39:8];   // 绝对坐标对齐到 0x81~0x84
+    wire [7:0]  wp_status  = ram_data_b_out[7:0];    
+    wire [31:0] wp_abs_pos = ram_data_b_out[39:8];   
     wire [31:0] rel_pos    = global_enc - wp_abs_pos; 
 
     always @(posedge clk or negedge rst_n) begin
@@ -158,8 +168,7 @@ module workpiece_tracker(
             case (state)
                 S_IDLE: begin
                     if (new_workpiece_pulse) begin
-                        ram_addr_b    <= {4'd0, wp_head}; 
-                        // 【修改点3】：数据打包顺序调整！先压入 global_enc，最后压入状态字 0x01
+                        ram_addr_b    <= wp_head; 
                         ram_data_b_in <= {24'd0, global_enc, 8'h01}; 
                         ram_wren_b    <= 1'b1;
                         state         <= S_WRITE_NEW;
@@ -170,12 +179,12 @@ module workpiece_tracker(
                 end
 
                 S_WRITE_NEW: begin
-                    wp_head <= wp_head + 1'b1; 
+                    wp_head <= wp_head + 1'b1; // 10位自然溢出，1023后自动归0
                     state   <= S_IDLE;
                 end
 
                 S_SWEEP_RD: begin
-                    ram_addr_b <= {4'd0, sweep_idx}; state <= S_SWEEP_WAIT;
+                    ram_addr_b <= sweep_idx; state <= S_SWEEP_WAIT;
                 end
                 S_SWEEP_WAIT: begin state <= S_SWEEP_CALC; end
 
@@ -196,21 +205,20 @@ module workpiece_tracker(
                         end
 
                         if (rel_pos > target_reject + 32'd1000) begin
-                            ram_addr_b    <= {4'd0, sweep_idx};
-                            // 销毁时也要保持格式：状态位清零
+                            ram_addr_b    <= sweep_idx;
                             ram_data_b_in <= {24'd0, 32'd0, 8'h00}; 
                             ram_wren_b    <= 1'b1;
                             state         <= S_SWEEP_WR;
                         end else begin
-                            if (sweep_idx == 4'd15) state <= S_IDLE; else begin sweep_idx <= sweep_idx + 1'b1; state <= S_SWEEP_RD; end
+                            if (sweep_idx == 10'd1023) state <= S_IDLE; else begin sweep_idx <= sweep_idx + 1'b1; state <= S_SWEEP_RD; end
                         end
                     end else begin
-                        if (sweep_idx == 4'd15) state <= S_IDLE; else begin sweep_idx <= sweep_idx + 1'b1; state <= S_SWEEP_RD; end
+                        if (sweep_idx == 10'd1023) state <= S_IDLE; else begin sweep_idx <= sweep_idx + 1'b1; state <= S_SWEEP_RD; end
                     end
                 end
 
                 S_SWEEP_WR: begin
-                    if (sweep_idx == 4'd15) state <= S_IDLE; else begin sweep_idx <= sweep_idx + 1'b1; state <= S_SWEEP_RD; end
+                    if (sweep_idx == 10'd1023) state <= S_IDLE; else begin sweep_idx <= sweep_idx + 1'b1; state <= S_SWEEP_RD; end
                 end
             endcase
         end
