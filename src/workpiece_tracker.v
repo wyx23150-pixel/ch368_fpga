@@ -3,9 +3,12 @@ module workpiece_tracker(
     input  wire        rst_n,
     input  wire [31:0] current_enc,  
     input  wire        sensor_in,    
-    output reg  [7:0]  cam_hit_pulse, 
-    output reg         qual_hit_pulse, 
-    output reg         rej_hit_pulse,  
+    
+    // 【架构改造 1：剥夺物理引脚直接输出权】
+    // 全部从 reg 改成 wire，由底部的 assign 统一调度路由
+    output wire [7:0]  cam_hit_pulse, 
+    output wire        qual_hit_pulse, 
+    output wire        rej_hit_pulse,  
     output wire [7:0]  light_delay_out,
     output wire [7:0]  blow_time_out,  
     input  wire [7:0]  addr,         
@@ -13,10 +16,16 @@ module workpiece_tracker(
     input  wire [7:0]  data_in,      
     input  wire        rd_en,        
     output reg  [7:0]  data_out,
-    output reg         motor_en,     
+    output wire        motor_en,     // 改为 wire
     output reg         motor_dir,    
     output reg  [7:0]  motor_speed   
 );
+
+    // 【架构改造 2：状态机专用的内部寄存器】
+    reg [7:0] cam_hit_internal;
+    reg       qual_hit_internal;
+    reg       rej_hit_internal;
+    reg       motor_en_internal;
 
     reg sensor_d1, sensor_d2, sensor_stable;               
     reg [18:0] debounce_cnt;         
@@ -42,22 +51,26 @@ module workpiece_tracker(
     assign light_delay_out = light_delay_ms;
     assign blow_time_out   = blow_time_ms;
 
+    // 【新增寄存器：急停/测试配置 与 间距过滤】
+    reg [31:0] min_spacing;       // 最小工件间距
+    reg [7:0]  sys_ctrl_reg;      // 系统控制位域 (Bit0:频闪, Bit1:急停, Bit2:手动吹气)
+    reg [31:0] last_accepted_enc; // 记录上一个合法入场工件的坐标
+
     reg [31:0] global_enc;
     always @(posedge clk) global_enc <= current_enc;
 
     // =========================================================
     // 【航母级架构】：16位双翻页器 + 13位巨型观察窗
     // =========================================================
-    reg [15:0] wp_index; // 16位翻页寄存器
+    reg [15:0] wp_index; 
 
-    wire [12:0] ram_addr_a; // A端口现在是 8192 深度，需要 13 根地址线！
+    wire [12:0] ram_addr_a; 
     wire [7:0]  ram_data_a_out;
     reg         ram_wren_a;
     
-    // 拼接魔法：10位工件ID + 3位字节偏移 = 13位物理地址
     assign ram_addr_a = {wp_index[9:0], addr[2:0]}; 
 
-    reg  [9:0]  ram_addr_b; // B端口现在是 1024 深度，需要 10 根地址线！
+    reg  [9:0]  ram_addr_b; 
     reg  [63:0] ram_data_b_in;
     wire [63:0] ram_data_b_out;
     reg         ram_wren_b;
@@ -68,16 +81,20 @@ module workpiece_tracker(
         .data_b     (ram_data_b_in), .address_b  (ram_addr_b), .wren_b (ram_wren_b), .q_b (ram_data_b_out)
     );
 
-    // 头指针暴涨到 10位宽！支持 0~1023 个工件！
     reg [9:0]  wp_head; 
 
     integer i;
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
-            motor_en <= 0; motor_dir <= 1; motor_speed <= 0;
+            motor_en_internal <= 0; motor_dir <= 1; motor_speed <= 0;
             target_reject <= 32'd20000; light_delay_ms <= 8'd2; blow_time_ms <= 8'd50;
             for(i=0; i<8; i=i+1) target_cam[i] <= 32'd5000 + (i*1000);
             ram_wren_a <= 1'b0; wp_index <= 0;
+            
+            // 【新增初始化】
+            min_spacing <= 32'd500; // 默认间距 500
+            sys_ctrl_reg <= 8'h00;
+            last_accepted_enc <= 32'h8000_0000; // 硬件魔法：保证开机第一个工件绝对能通过
         end else begin
             ram_wren_a <= 1'b0; 
             if (wr_en) begin
@@ -89,13 +106,13 @@ module workpiece_tracker(
                         2'd3: target_cam[addr[4:2]][31:24] <= data_in;
                     endcase
                 end
-                // 【新增】：双翻页器写入机制
-                else if (addr == 8'h7E) wp_index[15:8] <= data_in; // 翻页高8位
-                else if (addr == 8'h7F) wp_index[7:0]  <= data_in; // 翻页低8位
+                // 双翻页器写入机制
+                else if (addr == 8'h7E) wp_index[15:8] <= data_in; 
+                else if (addr == 8'h7F) wp_index[7:0]  <= data_in; 
                 else if (addr >= 8'h80 && addr <= 8'h87) ram_wren_a <= 1'b1;       
                 else begin
                     case (addr)
-                        8'h02: begin motor_en <= data_in[0]; motor_dir <= data_in[1]; end
+                        8'h02: begin motor_en_internal <= data_in[0]; motor_dir <= data_in[1]; end
                         8'h03: motor_speed <= data_in;
                         8'h08: target_reject[7:0]   <= data_in;
                         8'h09: target_reject[15:8]  <= data_in;
@@ -103,9 +120,19 @@ module workpiece_tracker(
                         8'h0B: target_reject[31:24] <= data_in;
                         8'h0E: light_delay_ms <= data_in; 
                         8'h0F: blow_time_ms   <= data_in; 
+                        
+                        // 【新增配置写入：地址 0x10~0x14】
+                        8'h10: min_spacing[7:0]   <= data_in;
+                        8'h11: min_spacing[15:8]  <= data_in;
+                        8'h12: min_spacing[23:16] <= data_in;
+                        8'h13: min_spacing[31:24] <= data_in;
+                        8'h14: sys_ctrl_reg       <= data_in;
                     endcase
                 end
             end
+            
+            // 【跨 Always 块同步】：在主循环记录最新入场坐标，供间距过滤使用
+            if (state == S_WRITE_NEW) last_accepted_enc <= global_enc;
         end
     end
 
@@ -124,9 +151,9 @@ module workpiece_tracker(
         else begin
             case (addr)
                 8'h00: data_out = 8'h5A; 
-                8'h01: data_out = wp_head[7:0];                 // 【修改】：头指针低 8 位
-                8'h0C: data_out = {6'b0, wp_head[9:8]};         // 【新增】：占用 0x0C 放头指针高 2 位
-                8'h02: data_out = {6'b0, motor_dir, motor_en};
+                8'h01: data_out = wp_head[7:0];                 
+                8'h0C: data_out = {6'b0, wp_head[9:8]};         
+                8'h02: data_out = {6'b0, motor_dir, motor_en_internal}; // 输出内部值
                 8'h03: data_out = motor_speed;
                 8'h04: data_out = global_enc[7:0];       
                 8'h05: data_out = global_enc[15:8];      
@@ -138,6 +165,13 @@ module workpiece_tracker(
                 8'h0B: data_out = target_reject[31:24];
                 8'h0E: data_out = light_delay_ms;
                 8'h0F: data_out = blow_time_ms;
+                
+                // 【新增数据读出】
+                8'h10: data_out = min_spacing[7:0];
+                8'h11: data_out = min_spacing[15:8];
+                8'h12: data_out = min_spacing[23:16];
+                8'h13: data_out = min_spacing[31:24];
+                8'h14: data_out = sys_ctrl_reg;
                 default: data_out = 8'hFF; 
             endcase
         end
@@ -152,7 +186,7 @@ module workpiece_tracker(
 
     reg [2:0]  state;
     reg [31:0] last_checked_enc;  
-    reg [9:0]  sweep_idx;         // 10位扫描指针，支持扫描 0~1023
+    reg [9:0]  sweep_idx;         
 
     wire [7:0]  wp_status  = ram_data_b_out[7:0];    
     wire [31:0] wp_abs_pos = ram_data_b_out[39:8];   
@@ -161,17 +195,23 @@ module workpiece_tracker(
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
             state <= S_IDLE; last_checked_enc <= 0; wp_head <= 0; sweep_idx <= 0;
-            ram_wren_b <= 0; cam_hit_pulse <= 0; qual_hit_pulse <= 0; rej_hit_pulse <= 0;
+            ram_wren_b <= 0; 
+            cam_hit_internal <= 0; qual_hit_internal <= 0; rej_hit_internal <= 0; // 改为内部引脚
         end else begin
-            ram_wren_b <= 0; cam_hit_pulse <= 0; qual_hit_pulse <= 0; rej_hit_pulse <= 0; 
+            ram_wren_b <= 0; 
+            cam_hit_internal <= 0; qual_hit_internal <= 0; rej_hit_internal <= 0; 
 
             case (state)
                 S_IDLE: begin
                     if (new_workpiece_pulse) begin
-                        ram_addr_b    <= wp_head; 
-                        ram_data_b_in <= {24'd0, global_enc, 8'h01}; 
-                        ram_wren_b    <= 1'b1;
-                        state         <= S_WRITE_NEW;
+                        // 【新增工件间距防重叠过滤】：无符号减法，天然免疫溢出
+                        if (global_enc - last_accepted_enc >= min_spacing) begin
+                            ram_addr_b    <= wp_head; 
+                            ram_data_b_in <= {24'd0, global_enc, 8'h01}; 
+                            ram_wren_b    <= 1'b1;
+                            state         <= S_WRITE_NEW;
+                        end
+                        // 如果距离太近，什么都不做，这个幽灵脉冲就被直接扔掉了！
                     end 
                     else if (global_enc != last_checked_enc) begin
                         last_checked_enc <= global_enc; sweep_idx <= 0; state <= S_SWEEP_RD;
@@ -179,7 +219,7 @@ module workpiece_tracker(
                 end
 
                 S_WRITE_NEW: begin
-                    wp_head <= wp_head + 1'b1; // 10位自然溢出，1023后自动归0
+                    wp_head <= wp_head + 1'b1; 
                     state   <= S_IDLE;
                 end
 
@@ -190,18 +230,19 @@ module workpiece_tracker(
 
                 S_SWEEP_CALC: begin
                     if (wp_status != 0) begin
-                        if (rel_pos == target_cam[0]) cam_hit_pulse[0] <= 1;
-                        if (rel_pos == target_cam[1]) cam_hit_pulse[1] <= 1;
-                        if (rel_pos == target_cam[2]) cam_hit_pulse[2] <= 1;
-                        if (rel_pos == target_cam[3]) cam_hit_pulse[3] <= 1;
-                        if (rel_pos == target_cam[4]) cam_hit_pulse[4] <= 1;
-                        if (rel_pos == target_cam[5]) cam_hit_pulse[5] <= 1;
-                        if (rel_pos == target_cam[6]) cam_hit_pulse[6] <= 1;
-                        if (rel_pos == target_cam[7]) cam_hit_pulse[7] <= 1;
+                        // 全部使用 internal 内部寄存器打标签
+                        if (rel_pos == target_cam[0]) cam_hit_internal[0] <= 1;
+                        if (rel_pos == target_cam[1]) cam_hit_internal[1] <= 1;
+                        if (rel_pos == target_cam[2]) cam_hit_internal[2] <= 1;
+                        if (rel_pos == target_cam[3]) cam_hit_internal[3] <= 1;
+                        if (rel_pos == target_cam[4]) cam_hit_internal[4] <= 1;
+                        if (rel_pos == target_cam[5]) cam_hit_internal[5] <= 1;
+                        if (rel_pos == target_cam[6]) cam_hit_internal[6] <= 1;
+                        if (rel_pos == target_cam[7]) cam_hit_internal[7] <= 1;
 
                         if (rel_pos == target_reject) begin
-                            if (wp_status == 8'hAA) qual_hit_pulse <= 1;
-                            if (wp_status == 8'hEE) rej_hit_pulse <= 1;
+                            if (wp_status == 8'hAA) qual_hit_internal <= 1;
+                            if (wp_status == 8'hEE) rej_hit_internal <= 1;
                         end
 
                         if (rel_pos > target_reject + 32'd1000) begin
@@ -223,4 +264,49 @@ module workpiece_tracker(
             endcase
         end
     end
+
+    // =======================================================
+    // 【独立外挂】：20Hz 频闪脉冲发生器
+    // =======================================================
+    reg [21:0] strobe_cnt;
+    reg        strobe_pulse; // 只持续 1 个时钟周期的 20Hz 脉冲
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            strobe_cnt <= 0; strobe_pulse <= 0;
+        end else begin
+            if (sys_ctrl_reg[0] == 1'b1) begin // 测试模式被开启
+                if (strobe_cnt >= 22'd2_500_000) begin
+                    strobe_cnt <= 0;
+                    strobe_pulse <= 1'b1;
+                end else begin
+                    strobe_cnt <= strobe_cnt + 1'b1;
+                    strobe_pulse <= 1'b0;
+                end
+            end else begin
+                strobe_cnt <= 0;
+                strobe_pulse <= 0;
+            end
+        end
+    end
+
+    // =======================================================
+    // 【终极引脚路由】：绝对安全的硬件级优先级裁决网
+    // 优先级：急停(Bit1) > 手动试吹(Bit2)/频闪(Bit0) > 正常状态机计算值
+    // =======================================================
+    
+    // 1. 相机触发路由：急停? 强行输出0 : (测试模式? 全体频闪 : 正常输出)
+    assign cam_hit_pulse = (sys_ctrl_reg[1]) ? 8'h00 : 
+                           (sys_ctrl_reg[0]) ? {8{strobe_pulse}} : 
+                           cam_hit_internal;
+
+    // 2. 气阀输出路由：急停? 强行关停 : 正常输出
+    assign qual_hit_pulse = (sys_ctrl_reg[1]) ? 1'b0 : qual_hit_internal;
+    
+    // 3. 次品气阀路由：增加“手动试吹气”逻辑 (Bit2) -> 位或运算(|)强行开启
+    assign rej_hit_pulse  = (sys_ctrl_reg[1]) ? 1'b0 : (sys_ctrl_reg[2] | rej_hit_internal);
+
+    // 4. 电机使能路由：急停? 强制停转 : 正常输出
+    assign motor_en       = (sys_ctrl_reg[1]) ? 1'b0 : motor_en_internal;
+
 endmodule
