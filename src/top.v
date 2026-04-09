@@ -20,13 +20,16 @@ module top(
     input  wire        sensor_in,  //传感器（如光电）
     output wire [7:0]       light_out,  //光源1（对应相机前光源曝光）
     output wire [7:0]       camera_out, //相机1
-    output wire        qual_out,   //合格吹气
-    output wire        rej_out, //废品吹气
+    output wire [3:0]       valve_out,  //修改：4个气阀输出
 
     // 5. 电机等实际执行器驱动信号
     output wire        motor_pwm_out, // 接到电机驱动 PWM 输入
     output wire        motor_dir_out, // 接到电机驱动的方向端 (DIR/IN1)
-    output wire        motor_en_out   // 接到电机驱动使能端 (EN)
+    output wire        motor_en_out,   // 接到电机驱动使能端 (EN)
+
+    // 6. 新增：震动盘和下料控制
+    output wire        vibrator_out,  // 震动盘控制
+    output wire        feeder_out     // 下料控制
 );
 
     // =======================================================
@@ -50,13 +53,14 @@ module top(
     wire [7:0]  w_light_delay_ms;
     wire [7:0]  w_blow_time_out;
 
-    wire        w_qual_hit_pulse;
-    wire        w_rej_hit_pulse;
+    wire [3:0]  w_valve_hit_pulse;  //修改：4个气阀信号
 
     wire        w_misc_led_r;
     wire        w_misc_led_y;
     wire        w_misc_led_g;
     wire        w_misc_buzzer;
+    wire        w_misc_vibrator;  // 震动盘控制
+    wire        w_misc_feeder;     // 下料控制
     wire [7:0]  w_misc_data_out;
     // =======================================================
     // 模块 1：编码器采集 (正交，甚至有 Z 相)
@@ -102,8 +106,7 @@ module top(
         
         // 【重要】这里的参数都是可以动态配置的
         .cam_hit_pulse   (w_cam_hit_pulse),            
-        .qual_hit_pulse    (w_qual_hit_pulse),        
-        .rej_hit_pulse  (w_rej_hit_pulse),   
+        .valve_hit_pulse  (w_valve_hit_pulse),  //修改：4个气阀   
 
         .light_delay_out (w_light_delay_ms),
         .blow_time_out  (w_blow_time_out),
@@ -220,20 +223,37 @@ module top(
         .cam_pin       (camera_out[7])         // 接 1# 相机触发输出
     );
 
-    valve_ctrl u_valve_qual0(
+    // 修改：4个气阀实例化
+    valve_ctrl u_valve0(
         .clk            (clk_50m),
         .rst_n          (rst_n),
-        .trigger_pulse  (w_qual_hit_pulse),
+        .trigger_pulse  (w_valve_hit_pulse[0]),
         .blow_ms        (w_blow_time_out),
-        .valve_pin      (qual_out)
+        .valve_pin      (valve_out[0])
     );
 
-    valve_ctrl u_valve_rej0(
+    valve_ctrl u_valve1(
         .clk            (clk_50m),
         .rst_n          (rst_n),
-        .trigger_pulse  (w_rej_hit_pulse),
+        .trigger_pulse  (w_valve_hit_pulse[1]),
         .blow_ms        (w_blow_time_out),
-        .valve_pin      (rej_out)
+        .valve_pin      (valve_out[1])
+    );
+
+    valve_ctrl u_valve2(
+        .clk            (clk_50m),
+        .rst_n          (rst_n),
+        .trigger_pulse  (w_valve_hit_pulse[2]),
+        .blow_ms        (w_blow_time_out),
+        .valve_pin      (valve_out[2])
+    );
+
+    valve_ctrl u_valve3(
+        .clk            (clk_50m),
+        .rst_n          (rst_n),
+        .trigger_pulse  (w_valve_hit_pulse[3]),
+        .blow_ms        (w_blow_time_out),
+        .valve_pin      (valve_out[3])
     );
 
     // =======================================================
@@ -250,8 +270,16 @@ module top(
         .led_r      (w_misc_led_r),
         .led_y      (w_misc_led_y),
         .led_g      (w_misc_led_g),
-        .buzzer     (w_misc_buzzer)
+        .buzzer     (w_misc_buzzer),
+        .vibrator   (w_misc_vibrator),  // 震动盘控制
+        .feeder     (w_misc_feeder)     // 下料控制
     );
+
+    // =======================================================
+    // 模块 7：输出端口连接
+    // =======================================================
+    assign vibrator_out = w_misc_vibrator;
+    assign feeder_out   = w_misc_feeder;
 
 
 endmodule

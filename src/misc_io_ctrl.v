@@ -10,17 +10,21 @@ module misc_io_ctrl (
     output wire led_r,
     output wire led_y,
     output wire led_g,
-    output wire buzzer
+    output wire buzzer,
+    output wire vibrator,   // 震动盘控制
+    output wire feeder      // 下料控制
 );
 
     localparam ADDR_CTRL = 8'h40;
 
     reg [7:0] misc_out_reg;
 
-    assign led_r    = misc_out_reg[0];
-    assign led_y    = misc_out_reg[1];
-    assign led_g    = misc_out_reg[2];
-    assign buzzer   = misc_out_reg[3];
+    assign led_r     = misc_out_reg[0];
+    assign led_y     = misc_out_reg[1];
+    assign led_g     = misc_out_reg[2];
+    assign buzzer    = misc_out_reg[3];
+    assign vibrator  = misc_out_reg[4];  // Bit4: 震动盘控制
+    assign feeder    = misc_out_reg[5];  // Bit5: 下料控制
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin
