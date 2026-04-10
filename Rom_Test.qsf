@@ -51,13 +51,13 @@ set_global_assignment -name STRATIX_DEVICE_IO_STANDARD "2.5 V"
 # ===================================================
 # 1. 时钟与复位
 # ===================================================
-set_location_assignment PIN_E1 -to clk_50m
+set_location_assignment PIN_M16 -to clk_50m
+set_location_assignment PIN_M12 -to rst_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to clk_50m
-set_location_assignment PIN_E15 -to rst_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to rst_n
 
 # ===================================================
-# 2. CH368 数据线 (P2排针 D0-D7)
+# 2. CH368 数据线 (按照你的新表格 P2排针)
 # ===================================================
 set_location_assignment PIN_M8 -to ch368_data[0]
 set_location_assignment PIN_L8 -to ch368_data[1]
@@ -70,7 +70,7 @@ set_location_assignment PIN_K9 -to ch368_data[7]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_data[*]
 
 # ===================================================
-# 3. CH368 地址线 (P2排针 A0-A7)
+# 3. CH368 地址线 (按照你的新表格 P2排针)
 # ===================================================
 set_location_assignment PIN_M9 -to ch368_addr[0]
 set_location_assignment PIN_P9 -to ch368_addr[1]
@@ -83,106 +83,103 @@ set_location_assignment PIN_L10 -to ch368_addr[7]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_addr[*]
 
 # ===================================================
-# 4. CH368 控制线 (WR/RD/CS)
+# 4. CH368 控制线与闲置片选
 # ===================================================
 set_location_assignment PIN_T9 -to ch368_wr_n
 set_location_assignment PIN_T10 -to ch368_rd_n
+set_location_assignment PIN_P14 -to ch368_cs_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_wr_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_rd_n
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to ch368_cs_n
 
 # ===================================================
-# 5. 光源输出 (P3排针 8路)
+# 5. 编码器与外设 (全新多通道映射)
 # ===================================================
+
+# --- 光源数组 (8个通道) ---
+# 根据表格 1# ~ 6#
 set_location_assignment PIN_A15 -to light_out[0]
 set_location_assignment PIN_F11 -to light_out[1]
 set_location_assignment PIN_A12 -to light_out[2]
 set_location_assignment PIN_A10 -to light_out[3]
 set_location_assignment PIN_D8 -to light_out[4]
 set_location_assignment PIN_B6 -to light_out[5]
-# 7#和8#光源暂时未定义，保留占位
-set_location_assignment PIN_C8 -to light_out[6]
-set_location_assignment PIN_D6 -to light_out[7]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to light_out[*]
+
 
 # ===================================================
-# 6. 相机输出 (P3排针 8路)
+# 【新增】：外设与杂项控制引脚 (基于 Excel 表格分配)
 # ===================================================
+
+# --- 硬件急停输入 ---
+# 表格：急停 -> P3 第 22 脚 -> PIN A6 (IN23)
+set_location_assignment PIN_A6 -to pin_hw_estop
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pin_hw_estop
+
+# --- 三色灯输出 ---
+# 表格：三色灯-红 -> P3 第 12 脚 -> PIN B11 (OUT4)
+set_location_assignment PIN_B11 -to pin_red_light
+# 表格：三色灯-黄 -> P3 第 14 脚 -> PIN B10 (OUT3)
+set_location_assignment PIN_B10 -to pin_yellow_light
+# 表格：三色灯-绿 -> P3 第 16 脚 -> PIN B9 (OUT2)
+set_location_assignment PIN_B9 -to pin_green_light
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pin_red_light
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pin_yellow_light
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pin_green_light
+
+# --- 蜂鸣器输出 ---
+# 表格中未明确标注蜂鸣器，但 P3 第 18 脚 (PIN C9 / OUT1) 是空置的通用输出。
+# 架构师建议：将其分配给蜂鸣器
+set_location_assignment PIN_C9 -to pin_buzzer
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pin_buzzer
+
+# --- 下料与震动盘 (可选预留，对应 misc_io_ctrl 的其它 Bit) ---
+# 表格：下料控制 -> PIN B14 (OUT8)
+# 表格：震动盘控制 -> PIN B13 (OUT7)
+# 如果你需要在顶层引出，可以使用以下配置：
+# set_location_assignment PIN_B14 -to pin_discharge_ctrl
+# set_location_assignment PIN_B13 -to pin_vibrator_ctrl
+# set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pin_discharge_ctrl
+# set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pin_vibrator_ctrl
+# --- 相机数组 (8个通道) ---
+# 根据表格 1# ~ 6#
 set_location_assignment PIN_A14 -to camera_out[0]
 set_location_assignment PIN_A13 -to camera_out[1]
 set_location_assignment PIN_A11 -to camera_out[2]
 set_location_assignment PIN_A9 -to camera_out[3]
 set_location_assignment PIN_B7 -to camera_out[4]
 set_location_assignment PIN_D11 -to camera_out[5]
-# 7#和8#相机暂时未定义，保留占位
-set_location_assignment PIN_C7 -to camera_out[6]
-set_location_assignment PIN_D7 -to camera_out[7]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to camera_out[*]
 
-# ===================================================
-# 7. 气阀输出 (P3排针 4路)
-# ===================================================
-set_location_assignment PIN_E10 -to valve_out[0]
-set_location_assignment PIN_D9 -to valve_out[1]
-set_location_assignment PIN_F9 -to valve_out[2]
-set_location_assignment PIN_E8 -to valve_out[3]
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to valve_out[*]
 
-# ===================================================
-# 8. 电机控制
-# ===================================================
+# --- 气阀与传感器 ---
+# 注意：你的 top.v 里叫 rej_out，这里必须同步修改！
+
+set_location_assignment PIN_A7 -to sensor_in
+
+# --- 电机与编码器 ---
 set_location_assignment PIN_C6 -to motor_pwm_out
 set_location_assignment PIN_D12 -to motor_en_out
-# motor_dir_out 暂未在Excel中定义
-set_location_assignment PIN_C12 -to motor_dir_out
+set_location_assignment PIN_C11 -to motor_dir_out
+set_location_assignment PIN_E11 -to enc_a
+set_location_assignment PIN_F6 -to enc_b
+set_location_assignment PIN_T12 -to enc_z
+
+# ===================================================
+# 统一设置 3.3-V LVTTL 电平标准
+# ===================================================
+# 使用通配符 [*] 可以一次性为整个数组设置电平标准，极其优雅！
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to light_out[*]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to camera_out[*]
+
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to rej_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to qual_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sensor_in
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to motor_pwm_out
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to motor_en_out
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to motor_dir_out
-
-# ===================================================
-# 9. 编码器输入
-# ===================================================
-set_location_assignment PIN_E11 -to enc_a
-set_location_assignment PIN_F6 -to enc_b
-# enc_z 暂未定义
-set_location_assignment PIN_F7 -to enc_z
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_a
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_b
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to enc_z
-
-# ===================================================
-# 10. 传感器输入
-# ===================================================
-set_location_assignment PIN_A7 -to sensor_in
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sensor_in
-
-# ===================================================
-# 11. 三色灯控制 (LED红/黄/绿)
-# ===================================================
-set_location_assignment PIN_B11 -to w_misc_led_r
-set_location_assignment PIN_B10 -to w_misc_led_y
-set_location_assignment PIN_B9 -to w_misc_led_g
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to w_misc_led_r
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to w_misc_led_y
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to w_misc_led_g
-
-# ===================================================
-# 12. 蜂鸣器控制
-# ===================================================
-set_location_assignment PIN_C9 -to w_misc_buzzer
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to w_misc_buzzer
-
-# ===================================================
-# 13. 振动盘控制 (新增)
-# ===================================================
-set_location_assignment PIN_B13 -to vibrator_out
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to vibrator_out
-
-# ===================================================
-# 14. 下料控制 (新增)
-# ===================================================
-set_location_assignment PIN_B14 -to feeder_out
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to feeder_out
 
 # ===================================================
 # 6. 编译及文件设置
@@ -212,4 +209,18 @@ set_global_assignment -name VERILOG_FILE src/valve_ctrl.v
 set_global_assignment -name CDF_FILE output_files/Chain1.cdf
 set_global_assignment -name CDF_FILE Chain5.cdf
 set_global_assignment -name VERILOG_FILE src/misc_io_ctrl.v
+set_location_assignment PIN_B13 -to vibrator_out
+set_location_assignment PIN_B14 -to feeder_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to feeder_out
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to valve_out[3]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to valve_out[2]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to valve_out[1]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to valve_out[0]
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to vibrator_out
+set_location_assignment PIN_E10 -to valve_out[0]
+set_location_assignment PIN_D9 -to valve_out[1]
+set_location_assignment PIN_F9 -to valve_out[2]
+set_location_assignment PIN_E8 -to valve_out[3]
+set_global_assignment -name CDF_FILE output_files/Chain2.cdf
+set_global_assignment -name CDF_FILE output_files/Chain3.cdf
 set_instance_assignment -name PARTITION_HIERARCHY root_partition -to | -section_id Top

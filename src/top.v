@@ -18,8 +18,8 @@ module top(
 
     // 4. 传感器输入与输出信号/统一高电平/低电平有效
     input  wire        sensor_in,  //传感器（如光电）
-    output wire [7:0]       light_out,  //光源1（对应相机前光源曝光）
-    output wire [7:0]       camera_out, //相机1
+    output wire [5:0]       light_out,  //光源1（对应相机前光源曝光）
+    output wire [5:0]       camera_out, //相机1
     output wire [3:0]       valve_out,  //修改：4个气阀输出
 
     // 5. 电机等实际执行器驱动信号
@@ -205,23 +205,7 @@ module top(
         .cam_pin       (camera_out[5])         // 接 1# 相机触发输出
     );
         // 第 7 组相机通道
-    cam_light_channel u_cam_ch6 (
-        .clk           (clk_50m),
-        .rst_n         (rst_n),
-        .trigger_pulse (w_cam_hit_pulse[6]), // 详细请见 0 号通道解释
-        .delay_ms      (w_light_delay_ms),    // 光源延时时间
-        .light_pin     (light_out[6]),         // 接 1# 光源控制输出
-        .cam_pin       (camera_out[6])         // 接 1# 相机触发输出
-    );
-        // 第 8 组相机通道
-    cam_light_channel u_cam_ch7 (
-        .clk           (clk_50m),
-        .rst_n         (rst_n),
-        .trigger_pulse (w_cam_hit_pulse[7]), // 详细请见 0 号通道解释
-        .delay_ms      (w_light_delay_ms),    // 光源延时时间
-        .light_pin     (light_out[7]),         // 接 1# 光源控制输出
-        .cam_pin       (camera_out[7])         // 接 1# 相机触发输出
-    );
+
 
     // 修改：4个气阀实例化
     valve_ctrl u_valve0(
