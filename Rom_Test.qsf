@@ -182,6 +182,13 @@ set_global_assignment -name VERILOG_FILE src/valve_ctrl.v
 set_global_assignment -name CDF_FILE output_files/Chain1.cdf
 set_global_assignment -name CDF_FILE Chain5.cdf
 set_global_assignment -name VERILOG_FILE src/misc_io_ctrl.v
+
+# ===================================================
+# 15. 硬件急停输入 (新增)
+# ===================================================
+set_location_assignment PIN_A6 -to hw_estop_in
+set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to hw_estop_in
+
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to valve_out[3]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to valve_out[2]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to valve_out[1]

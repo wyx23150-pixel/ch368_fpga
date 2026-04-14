@@ -17,7 +17,8 @@ module top(
     input  wire        enc_z,      
 
     // 4. 传感器输入与输出信号/统一高电平/低电平有效
-    input  wire        sensor_in,  //传感器（如光电）
+    input  wire        sensor_in,
+    input  wire        hw_estop_in,     // 硬件急停输入（新增）  //传感器（如光电）
     output wire [5:0]       light_out,  //光源1（对应相机前光源曝光）
     output wire [5:0]       camera_out, //相机1
     output wire [3:0]       valve_out,  //修改：4个气阀输出
@@ -103,7 +104,8 @@ module top(
         .rst_n        (rst_n),            
         .current_enc  (w_encoder_val), 
         
-        .sensor_in    (sensor_in),       
+        .sensor_in    (sensor_in),
+        .hw_estop      (hw_estop_in),  // 硬件急停输入       
         
         // 【重要】这里的参数都是可以动态配置的
         .cam_hit_pulse   (w_cam_hit_pulse),            
