@@ -27,9 +27,16 @@ module top(
     output wire        motor_dir_out, // 接到电机驱动的方向端 (DIR/IN1)
     output wire        motor_en_out,   // 接到电机驱动使能端 (EN)
 
-    // 6. 新增：震动盘和下料控制
-    output wire        vibrator_out,  // 震动盘控制
-    output wire        feeder_out     // 下料控制
+    // 6. 新增：杂项控制
+
+    output wire        misc_led_r,
+    output wire        misc_led_y,
+    output wire        misc_led_g,
+    output wire        misc_buzzer,
+    output wire        misc_vibrator,  // 震动盘控制
+    output wire        misc_feeder     // 下料控制
+
+   
 );
 
     // =======================================================
@@ -43,7 +50,7 @@ module top(
     wire        w_sys_wr_en;
     wire        w_sys_rd_en;
     wire [7:0]  w_sys_data_in;
-
+    wire [7:0]  w_misc_data_out;
     // 各个功能模块之间的通信信号
     wire        w_motor_en;
     wire        w_motor_dir;
@@ -55,13 +62,7 @@ module top(
 
     wire [3:0]  w_valve_hit_pulse;  //修改：4个气阀信号
 
-    wire        w_misc_led_r;
-    wire        w_misc_led_y;
-    wire        w_misc_led_g;
-    wire        w_misc_buzzer;
-    wire        w_misc_vibrator;  // 震动盘控制
-    wire        w_misc_feeder;     // 下料控制
-    wire [7:0]  w_misc_data_out;
+
     // =======================================================
     // 模块 1：编码器采集 (正交，甚至有 Z 相)
     // =======================================================
@@ -251,19 +252,18 @@ module top(
         .rd_en      (w_sys_rd_en),
         .data_in    (w_sys_data_out),
         .data_out   (w_misc_data_out),
-        .led_r      (w_misc_led_r),
-        .led_y      (w_misc_led_y),
-        .led_g      (w_misc_led_g),
-        .buzzer     (w_misc_buzzer),
-        .vibrator   (w_misc_vibrator),  // 震动盘控制
-        .feeder     (w_misc_feeder)     // 下料控制
+        .led_r      (misc_led_r),
+        .led_y      (misc_led_y),
+        .led_g      (misc_led_g),
+        .buzzer     (misc_buzzer),
+        .vibrator   (misc_vibrator),  // 震动盘控制
+        .feeder     (misc_feeder)     // 下料控制
     );
 
     // =======================================================
     // 模块 7：输出端口连接
     // =======================================================
-    assign vibrator_out = w_misc_vibrator;
-    assign feeder_out   = w_misc_feeder;
+
 
 
 endmodule
