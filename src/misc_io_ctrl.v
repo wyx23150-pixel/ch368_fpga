@@ -11,11 +11,11 @@ module misc_io_ctrl (
     output wire led_y,
     output wire led_g,
     output wire buzzer,
-    output wire vibrator,   // Õð¶¯ÅÌ¿ØÖÆ
-    output wire feeder      // ÏÂÁÏ¿ØÖÆ
+    output wire vibrator,   // ï¿½ï¿½ï¿½Ì¿ï¿½ï¿½ï¿½
+    output wire feeder      // ï¿½ï¿½ï¿½Ï¿ï¿½ï¿½ï¿½
 );
 
-    localparam ADDR_CTRL = 8'h40;
+    localparam ADDR_CTRL = 8'h50;
 
     reg [7:0] misc_out_reg;
 
@@ -23,8 +23,8 @@ module misc_io_ctrl (
     assign led_y     = misc_out_reg[1];
     assign led_g     = misc_out_reg[2];
     assign buzzer    = misc_out_reg[3];
-    assign vibrator  = misc_out_reg[4];  // Bit4: Õð¶¯ÅÌ¿ØÖÆ
-    assign feeder    = misc_out_reg[5];  // Bit5: ÏÂÁÏ¿ØÖÆ
+    assign vibrator  = misc_out_reg[4];  // Bit4: ï¿½ï¿½ï¿½Ì¿ï¿½ï¿½ï¿½
+    assign feeder    = misc_out_reg[5];  // Bit5: ï¿½ï¿½ï¿½Ï¿ï¿½ï¿½ï¿½
 
     always @(posedge clk or negedge rst_n) begin
         if (!rst_n) begin

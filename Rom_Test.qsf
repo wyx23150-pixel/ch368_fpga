@@ -112,8 +112,6 @@ set_location_assignment PIN_B6 -to light_out[5]
 
 # --- 硬件急停输入 ---
 # 表格：急停 -> P3 第 22 脚 -> PIN A6 (IN23)
-set_location_assignment PIN_A6 -to pin_hw_estop
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to pin_hw_estop
 
 
 # --- 相机数组 (8个通道) ---
@@ -146,7 +144,6 @@ set_location_assignment PIN_T12 -to enc_z
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to light_out[*]
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to camera_out[*]
 
-set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to sensor_in
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to motor_pwm_out
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to motor_en_out
 set_instance_assignment -name IO_STANDARD "3.3-V LVTTL" -to motor_dir_out
